@@ -1,0 +1,33 @@
+<?php
+
+if (!defined("IN_MYBB")) {
+    die("Direct access not allowed.");
+}
+
+$page->add_breadcrumb_item("JSON Forum Population", "index.php?module=config-json_forum_population");
+
+$sub_tabs['json_forum_population'] = [
+    'title' => "JSON Forum Population",
+    'link' => "index.php?module=config-json_forum_population",
+    'description' => "Generate threads and posts from JSON input."
+];
+
+$page->output_header("JSON Forum Population");
+
+if (!$mybb->input['action'] || $mybb->input['action'] == "generate") {
+    $page->output_nav_tabs($sub_tabs, 'json_forum_population');
+
+    if (!$mybb->input['generate']) {
+        $form = new Form("index.php?module=config-json_forum_population&action=generate", "post");
+        $form_container = new FormContainer("JSON Forum Population JSON Input");
+        $form_container->output_row("JSON Input", "Enter your JSON data here.", $form->generate_text_area('json_input', '', ['rows' => 20, 'style' => 'width: 100%']), 'json_input');
+        $form_container->end();
+        $buttons[] = $form->generate_submit_button("Generate Threads and Posts");
+        $form->output_submit_wrapper($buttons);
+        $form->end();
+    } else {
+        json_forum_population_process_json();
+    }
+}
+
+$page->output_footer();
