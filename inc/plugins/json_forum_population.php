@@ -14,7 +14,7 @@ function json_forum_population_info()
         "website" => "",
         "author" => "Niels Vanden Eynde",
         "authorsite" => "",
-        "version" => "1.1",
+        "version" => "1.2",
         "compatibility" => "18*"
     ];
 }
@@ -89,61 +89,48 @@ function json_forum_population_admin_action_handler(&$actions)
     $actions['json_forum_population'] = ['active' => 'json_forum_population', 'file' => 'json_forum_population'];
 }
 
-// Admin Page
-function json_forum_population_admin_page()
-{
-    global $page, $db, $mybb;
-
-    $page->output_header("JSON Forum Population");
-
-    // Show JSON input form
-    if (!$mybb->input['generate']) {
-        $form = new Form("index.php?module=config-json_forum_population&action=generate", "post");
-        $form_container = new FormContainer("JSON Forum Population JSON Input");
-        $form_container->output_row("JSON Input", "Enter your JSON data here.", $form->generate_text_area('json_input', '', ['rows' => 20, 'style' => 'width: 100%']), 'json_input');
-        $form_container->end();
-        $buttons[] = $form->generate_submit_button("Generate Threads and Posts");
-        $form->output_submit_wrapper($buttons);
-        $form->end();
-    } else {
-        // JSON processing will be handled by the json_forum_population_process_json function
-        echo "<p>Processing JSON data...</p>";
-    }
-
-    $page->output_footer();
-}
-
 // JSON Processing Function
 function json_forum_population_process_json()
 {
-    global $mybb, $db, $lang, $plugins, $cache;
+    global $mybb;
 
-    if ($mybb->input['action'] == "generate" && !empty($mybb->input['json_input'])) {
-        $json_data = json_decode($mybb->input['json_input'], true);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            $base_start_date = strtotime("2024-08-01");
-            $today = time();
+    if ($mybb->input['action'] != "generate" || empty($mybb->input['json_input'])) {
+        return;
+    }
+    $json_data = json_decode($mybb->input['json_input'], true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo "<p>Error processing JSON input: " . json_last_error_msg() . "</p>";
+        return;
+    }
+    
+    $start_date = strtotime($mybb->input['start_date']);
+    $end_date = strtotime($mybb->input['end_date']);
+    $min_views = intval($mybb->input['min_views']);
+    $max_views = intval($mybb->input['max_views']);
 
-            foreach ($json_data['threads'] as $thread) {
-                $forum_id = get_forum_id_by_title($thread['forum_id']);
-                $first_post = $thread['posts'][0];
+    foreach ($json_data['threads'] as $thread) {
+        $forum_id = get_forum_id_by_title($thread['forum_id']);
+        $first_post = $thread['posts'][0];
 
-                $random_thread_timestamp = get_random_datetime($base_start_date, $today);
-                $thread_id = create_thread($forum_id, $thread['title'], $first_post['user_id'], $first_post['content'], $random_thread_timestamp);
+        $random_thread_timestamp = get_random_datetime($start_date, $end_date);
+        $thread_id = create_thread(
+            $forum_id, 
+            $thread['title'], 
+            $first_post['user_id'], 
+            $first_post['content'], 
+            $random_thread_timestamp, 
+            $min_views, 
+            $max_views);
 
-                $previous_post_timestamp = $random_thread_timestamp;
+        $previous_post_timestamp = $random_thread_timestamp;
 
-                for ($i = 1; $i < count($thread['posts']); $i++) {
-                    $post = $thread['posts'][$i];
-                    $previous_post_timestamp = get_random_datetime($previous_post_timestamp, $today);
-                    create_post($thread_id, $post['user_id'], $post['content'], $previous_post_timestamp);
-                }
-            }
-            echo "<p>Threads and posts generated successfully!</p>";
-        } else {
-            echo "<p>Error processing JSON input: " . json_last_error_msg() . "</p>";
+        for ($i = 1; $i < count($thread['posts']); $i++) {
+            $post = $thread['posts'][$i];
+            $previous_post_timestamp = get_random_datetime($previous_post_timestamp, $end_date);
+            create_post($thread_id, $post['user_id'], $post['content'], $previous_post_timestamp);
         }
     }
+    echo "<p>Threads and posts generated successfully!</p>";   
 }
 
 // Helper: Get Forum ID by Title
@@ -156,7 +143,7 @@ function get_forum_id_by_title($forum_title)
 }
 
 // Helper: Create Thread
-function create_thread($forum_id, $title, $user_id, $content, $timestamp)
+function create_thread($forum_id, $title, $user_id, $content, $timestamp, $min_views, $max_views)
 {
     global $db;
 
@@ -173,7 +160,7 @@ function create_thread($forum_id, $title, $user_id, $content, $timestamp)
         return false;
     }
 
-    $random_views = rand(10, 150);
+    $random_views = rand($min_views, $max_views);
 
     // Prepare thread data
     $thread_data = [
@@ -211,7 +198,7 @@ function create_thread($forum_id, $title, $user_id, $content, $timestamp)
     $thread_id = $thread_info['tid']; // Correctly retrieve the thread ID from the insert_thread response
     
      // Update the thread views
-     $db->update_query("threads", ["views" => $random_views], "tid='$thread_id'");
+    $db->update_query("threads", ["views" => $random_views], "tid='$thread_id'");
 
     return $thread_id;
 }
@@ -256,7 +243,6 @@ function create_post($thread_id, $user_id, $content, $timestamp)
             "signature" => 1,
         ]
     ];
-
 
     $posthandler->set_data($post_data);
 

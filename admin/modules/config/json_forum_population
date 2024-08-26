@@ -14,13 +14,49 @@ $sub_tabs['json_forum_population'] = [
 
 $page->output_header("JSON Forum Population");
 
+$default_start_date = date('Y-m-d', strtotime('-1 month'));
+$default_end_date = date('Y-m-d');
+$default_min_views = 10;
+$default_max_views = 150;
+
 if (!$mybb->input['action'] || $mybb->input['action'] == "generate") {
     $page->output_nav_tabs($sub_tabs, 'json_forum_population');
 
     if (!$mybb->input['generate']) {
         $form = new Form("index.php?module=config-json_forum_population&action=generate", "post");
-        $form_container = new FormContainer("JSON Forum Population JSON Input");
-        $form_container->output_row("JSON Input", "Enter your JSON data here.", $form->generate_text_area('json_input', '', ['rows' => 20, 'style' => 'width: 100%']), 'json_input');
+        $form_container = new FormContainer("Forum Population JSON Input");
+        
+        $form_container->output_row(
+            "Start Date", 
+            "Select the start date for post creation.", 
+            "<input type='date' name='start_date' value='{$default_start_date}' />", 
+            'start_date');
+
+        $form_container->output_row(
+            "End Date", 
+            "Select the end date for post creation.",
+            "<input type='date' name='end_date' value='{$default_end_date}' />", 
+            'end_date');
+
+        // Directly create HTML number input fields for views
+        $form_container->output_row(
+            "Minimum Views", 
+            "Enter the minimum number of views.", 
+            "<input type='number' name='min_views' value='{$default_min_views}' />", 
+            'min_views');
+
+        $form_container->output_row(
+            "Maximum Views", 
+            "Enter the maximum number of views.", 
+            "<input type='number' name='max_views' value='{$default_max_views}' />", 
+            'max_views');
+
+        $form_container->output_row(
+            "JSON Input", 
+            "Enter your JSON data here.", 
+            $form->generate_text_area('json_input', '', ['rows' => 20, 'style' => 'width: 100%']), 
+            'json_input');
+
         $form_container->end();
         $buttons[] = $form->generate_submit_button("Generate Threads and Posts");
         $form->output_submit_wrapper($buttons);
